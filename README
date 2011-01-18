@@ -1,4 +1,6 @@
-A program, which uses artificial stupidity to implement Sherlock Holmes' 
-technique to avoid reading log files...
+Antilog -- a program which uses artificial stupidity to implement 
+Sherlock Holmes' technique to avoid reading log files...
+
    "It is an old maxim of mine that when you have excluded the impossible, 
     whatever remains, however improbable, must be the truth."
+    [The Adventure of the Beryl Coronet]
