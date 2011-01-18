@@ -1,0 +1,71 @@
+.\"	@(#) antilog.1 
+.\"
+.TH antilog 1 "15 Jan 2005"
+.AT 3
+.SH NAME
+antilog \- read logs and filter out harmless entries
+.SH SYNOPSIS
+.B antilog
+.B [-a|-y][-c config-file][-m mail-recipient] [-O][-v]
+file ...
+.sp 0
+.SH DESCRIPTION
+.I antilog
+is used to read logs and remove lines which are uninteresting,
+leaving only ones that suggest problems.
+.PP
+.TP
+.B \-v
+Turns on verbose reporting to stderr.
+.TP
+.B \-c config-file
+Reads a config file instead of the minimal configuration
+in the antilog script. May be repeated for multiple files.
+.TP
+.B \-a
+all: report on all dates in the file(s). The default is to report on
+just today's messages.
+.TP
+.B \-y
+yesterday: report on yesterday's messages.
+.TP
+.B \-O
+Oracle: read oracle-format files
+.PT
+.B \-m mail-recipient
+Directs output via mail to a recipient. May be
+repeated for additional recipients.
+.SH USAGE
+.PP
+This can be used to filter out noise when reading syslog files
+interactively, or it can be run under crom to check the day's
+log entries.
+.PP
+For example, 
+ 50 11 * * * /path/to/antilog -c /path/to/hostname.antilog  /var/adm/messages
+.br
+will read the day's logs, filter out the uninteresting bits and, if anything 
+is left, will write it to stdout, causing cron to email it to you.
+
+
+.SH FILES
+.PP
+One or more optional config files can be passed via the -c option, above.
+To create a new config file,  take all the old logs, up to but not
+including the day the problem occurred, remove the date-stamps, and
+use sort -u to create a table of log entries that we've seen
+previously. Inspect that for anything that suggests that the
+problem has been creeping up on us, and if not, 
+trim done the lines to remove timestamps, hostnames or userids.
+What's left will be a set of patterns that antilog can use to filter
+out normal, unexceptional or routine entries, leaving just
+whatever is extraodinary or suspicious.  </p>
+
+
+.SH "SEE ALSO"
+awk/nawk(1)
+
+.SH BUGS
+
+.SH AUTHOR
+David Collier-Brown, davecb@spamcop.net

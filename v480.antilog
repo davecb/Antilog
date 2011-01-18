@@ -1,0 +1,72 @@
+# General rules for priorities:
+#  Always pass high ones through.
+LOG_EMERG: pass
+
+# Don't decide about middle priorities, yet. These are:
+# LOG_ALERT,LOG_CRIT, LOG_ERR, LOG_WARNING,LOG_NOTICE, LOG_INFO 
+
+# Always filter out very low priorities.
+LOG_DEBUG
+
+# Now consider the "facilities", which are categories of application.
+# LOG_KERN LOG_USER # This is the default facility.
+# LOG_MAIL LOG_DAEMON  LOG_AUTH LOG_LPR LOG_NEWS  
+# LOG_UUCP LOG_CRON LOG_AUDIT LOG_LOCAL0 LOG_LOCAL1 
+# LOG_LOCAL2 LOG_LOCAL3 LOG_LOCAL4 LOG_LOCAL5 
+# LOG_LOCAL6 LOG_LOCAL7 
+
+# And finally look at combinations and individual lines
+
+# Boot time
+last message repeated
+Use is subject to license terms
+auth.crit] rebooted by      
+
+# Power management
+daemon.error].*Failed to monitor the power button.     
+daemon.error].*Unable to connect to open /dev/pm. pm-actions disabled   
+
+# Shutdown
+syslogd: going down on signal 15         
+daemon.error] rpcbind terminating on signal.       
+
+# Networking
+NOTICE.*TX stall detected after: pass
+daemon.error] No test address configured on interface
+user.warning] ACEAGENT: Multihomed host detected
+
+# Login and Authentication
+auth.info] .* succeeded for
+auth.notice] .* succeeded for
+auth.info] Accepted keyboard-interactive/pam for
+auth.info] Accepted publickey for oracle from
+auth.info] Server listening on 0.0.0.0 port 22.
+auth.info] Server listening on .. port 22.
+auth.notice] ROOT LOGIN /dev/console
+auth.notice] ace_dir_env is VAR_ACE=
+auth.info] subsystem request for sftp
+# The citrix server has an old and insecure (!) version of ssh (SecureCRT 4.0)
+auth.info] Did not receive identification string from 10.250.8.100
+auth.info] Did not receive identification string from 10.250.8.101
+auth.info] Did not receive identification string from 10.250.8.150
+auth.info] Did not receive identification string from 10.250.8.151
+
+# EMC
+Invalid ioctl opcode = 0x
+kern.warning] WARNING: Page83 data not standards compliant EMC *SYMMETRIX
+
+# NTP
+daemon.info] precision =
+daemon.info] synchronized to
+daemon.notice] adjust time server
+daemon.notice] tickadj =
+daemon.notice] using kernel phase-lock loop
+
+# Sendfail(8)
+mail.alert] unable to qualify my own domain name
+mail.crit] My unqualified host name .* unknown; sleeping for retry
+mail.info]
+
+# And trim off the rest.
+kern.notice
+kern.info

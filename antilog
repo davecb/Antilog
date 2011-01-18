@@ -1,0 +1,346 @@
+#!/bin/sh
+#
+# antilog -- remove uninteresting lines from logs, so
+#	that what remains to be read is interesting
+#
+#   Copyright (C) 2005, David Collier-Brown, Data Center Works
+#   This program is free software; you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation; either version 2 of the License, or
+#   (at your option) any later version.
+#
+# Inputs:
+# mon dd hhh:mm:ss host  tag       opt pid   facility.lev  free test
+# Jan 14 10:55:51 froggy rpcbind: [ID 564983 daemon.error] rpcbind terminating
+# Test with logger -o alert "some string that isnn't filtered out"
+#
+ProgName=`basename $0`
+AWKFILE=/tmp/antilog.awk.$$
+MAILFILE=/tmp/antilog.mail.$$
+Day=1
+Input='Syslog'
+
+usage() {
+	say "Usage: $ProgName [-a|-y][-c configfile][-m mailto][-O][-v] log"
+}
+
+
+main() {
+	if [ "$#" -lt 1 ]; then
+		say "antilog -- read and discard junk from logs"
+		usage
+		exit 0
+	fi
+	while [ "$1" != "" ]; do
+		case "$1" in
+		-a) Day=0 ;; # All ::= not just today
+		-c) Config="$Config $2"; shift ;;
+		-m) Mailto="$Mailto $2"; shift ;;
+		-O) Input='Oracle' ;;
+		-v) Verbose=1 ;;
+		-y) Day=-1 ;; # Do yesterday's messages
+		-*) say "$ProgName: unknown option $1, ignored" ;;
+		*) break ;;
+		esac
+		shift
+	done
+
+	# Check for an input file
+	for i in $*; do
+		if [ ! -r "$i" ]; then
+			say "$ProgName: cannot read log file $i, halting."
+			usage
+			exit 1
+		fi
+	done
+
+	# Compile the rules: "pass" means never filter out.
+	# This is the table that controls the program, and
+	# is where you create all the rules.
+	trap 'rm -f $AWKFILE $MAILFILE' 1 2 3 4 5 6 7 8 9 0
+	if [ "$Config" != "" ]; then
+		cat $Config | compile >${AWKFILE}
+	else
+		compile >${AWKFILE} <<EOF
+
+#
+# Default rules: these are used when you don't specify -c,
+#	and are a template to start from when developing rulesets
+#
+# General rules for priorities:
+#
+#  Always pass high ones through.
+LOG_EMERG: pass
+
+# Don't decide about middle priorities, yet.
+# LOG_ALERT LOG_CRIT LOG_ERR LOG_WARNING LOG_NOTICE LOG_INFO 
+
+# Always filter out very low priorities.
+LOG_DEBUG
+
+#
+# Now consider the "facilities", which are categories of application.
+#
+# Don't do anything here initially...
+# LOG_KERN LOG_USER # This is the default facility.
+# LOG_MAIL LOG_DAEMON  LOG_AUTH LOG_LPR LOG_NEWS  LOG_UUCP
+# LOG_CRON LOG_AUDIT  LOG_LOCAL0 LOG_LOCAL1 LOG_LOCAL2 
+# LOG_LOCAL2 LOG_LOCAL3 LOG_LOCAL4 LOG_LOCAL5 LOG_LOCAL6 LOG_LOCAL7 
+
+#
+# And finally look at combinations and individual lines. This is
+# where most of the rules end up.
+#
+
+# Boot time
+kern.notice
+kern.info
+last message repeated
+Use is subject to license terms.         
+auth.crit {
+	rebooted by root
+} 
+
+# Power management
+daemon.error {
+	Failed to monitor the power button.     
+	Unable to connect to open /dev/pm: pm-actions disabled   
+}
+
+# sendfail(8) blunders
+mail.alert] unable to qualify my own domain name
+mail.crit] My unqualified host name
+
+# Shutdown
+syslogd: going down on signal 15         
+daemon.error] rpcbind terminating on signal.       
+
+# DHCP 
+daemon.warning] configure_if: no IP broadcast specified
+
+# Networking
+NOTICE.*TX stall detected after: pass
+kern.warning] WARNING: pcipsy0: spurious interrupt from ino 0x2a
+
+# Gconfd
+user.error] file gerror.c. line 225. assertion
+
+# Java
+user.error {
+	libpkcs11: /usr/lib/security/pkcs11_softtoken.so unexpected failure
+	libpkcs11: open /var/run/kcfd_door: No such file or directory
+}
+
+# And trim off the rest.
+kern.notice
+kern.info
+
+# End of default rules
+EOF
+	fi
+
+	if [ "$Verbose" != "" ]; then
+		cat $AWKFILE 1>&2
+		say ""
+	fi
+	dateSelect $* | nawk -f $AWKFILE | optEmail
+}
+
+#
+# compile -- read a table of rules and build an awk program
+# 	This is the one-level version of the compiler, so
+#	you can't say (kern.info && ! NOTICE) quite yet.
+#
+compile() {
+	sed \
+		-e 's/#.*$//' \
+		-e 's/[ \t]*$//' \
+		-e '/^[ \t]*$/d' |\
+		# -e 's/\//./g' \
+		# -e 's/\]/\\]/g' |\
+	nawk -F: '
+/{/ {
+	# Capture a prefix common to lines up to the next }
+	gsub("{", "",$0)
+	pre = preprocess($0)
+	next
+}
+/}/ {
+	pre =""
+	next
+}
+
+# Process the priorities 
+/LOG_EMERG|LOG_ALERT|LOG_CRIT|LOG_ERR|LOG_WARNING|LOG_NOTICE|LOG_INFO|LOG_DEBUG/ {
+	# We just saw a priority.
+	# print "prio >>", $0 
+	gsub("LOG_", "", $1);
+	if ($NF ~ /pass/) {
+		gsub("pass","",$0)
+		$0 = preprocess($0)
+		prefix()
+		printf("\\.%s\\]/ { print \$0; next }\n", tolower($0));
+	}
+	else  {
+                $0 = preprocess($0)
+		prefix()
+		printf("\\.%s\\]/ { next }\n", tolower($0));
+	}
+	next;
+}
+
+
+# Now consider the "facilities", which are categories of application.
+/LOG_KERN|LOG_USER|LOG_MAIL|LOG_DAEMON|LOG_AUTH|LOG_LPR|LOG_NEWS|LOG_UUCP|LOG_CRON|LOG_AUDIT|LOG_LOCAL[0-9]/ { 
+
+	# print "facil >>", $0
+	if ($NF ~ /pass/) {
+		gsub("pass","",$0)
+                $0 = preprocess($0)
+		prefix()
+		printf("%s\\.[a-z]*\\]/ { print \$0; next }\n", tolower($0));
+	}
+	else  {
+                $0 = preprocess($0)
+		prefix()
+		printf("%s\\.[a-z]*\\]/ { next }\n", tolower($0));
+	}
+	next;
+}
+
+/.*/ {
+	# print "plain >>", $0
+	if ($NF ~ /pass/) {
+		gsub("pass","",$0)
+		$0 = preprocess($0)
+		prefix()
+		printf("%s/ { print \$0; next }\n", $0);
+	}
+	else  {
+		$0 = preprocess($0)
+		prefix()
+		printf("%s/ { next }\n", $0);
+	}
+}
+END {
+        $0 = preprocess($0)
+	printf("/.*/ { print \$0 }\n");
+}
+
+#
+# prefix -- prepend a prefix string if it is defined, else just a /
+#
+function prefix() {
+	if (pre == "") {
+		printf("/");
+	}
+	else {
+		printf("/%s.*", pre)
+	}
+}
+
+#
+# preprocess -- trun a string into an RE suitable for awk to search with
+#
+function preprocess(string) {
+	gsub("[ \t]*$", "", string)
+	gsub("^[ \t]*", "", string)
+	gsub("\/", "\\/", string)
+	gsub("\\]", "\\]", string)
+	# gsub("\\.", "\\.", string) # No, leave . a wildcard
+	gsub("\\`", "\\`", string)
+	# I dont have the quoting right for a single quote in this string...
+	return string
+}
+'
+}
+
+#
+# optEmail -- conditionally mail to specified recipients
+#
+optEmail() {
+	if [ "$Mailto" = "" ]; then
+		cat
+	else
+		cat >${MAILFILE}
+		if [ -s ${MAILFILE} ]; then
+			# non-empty mail message to send
+			mailx -s "syslog errors from `hostname` on `date`" \
+				$Mailto <${MAILFILE}
+		fi
+
+	fi
+}
+
+#
+# dateSelect -- select appropriate date range
+#
+dateSelect() {
+
+	date=`date +'%b %e'`
+	oradate=`date +'%Y-%m-%d'`
+	yesterday=`TZ=EST26EDT date +'%b %e'`
+	orayesterday=`TZ=EST26EDT date +'%Y-%m-%d'`
+
+
+	if [ "$Input" = "Syslog" ]; then
+		if [ "$Day" -eq 1 ]; then
+			# Look for today's data
+			grep "${date}" "$@"
+		elif [ "$Day" -eq -1 ]; then
+			# Look fo yesterday's
+			grep "${yesterday}" "$@"
+		else
+			# Any date is fine.
+			cat "$@"
+		fi
+	elif [ "$Input" = "Oracle" ]; then
+		if [ "$Day" -eq 1 ]; then
+			# It's today
+			cat "$@" | nawk '
+			/^`$oradate`/ {
+				d = $0
+				next
+			}
+			/.*/ {
+				if (d != "") {
+					print d, $0
+				}
+			}'
+		elif [ "$Day" -eq -1 ]; then
+			# It's yesterday
+			cat "$@" | nawk '
+			/^`$orayesterday`/ {
+				d = $0
+				next
+			}
+			/.*/ {
+				if (d != "") {
+					print d, $0
+				}
+			}'
+		else
+			# Any date is fine
+			cat "$@" | nawk '
+			/^20[0-9][0-9]-/ {
+				d = $0
+				next
+			}
+			/.*/ {
+				print d, $0
+			}'	
+		fi
+	else
+		say "$0: Invalid input type \"$Input\", ignored"
+		cat "$@"
+	fi
+}
+
+#
+# say -- echo to stderr
+#
+say() {
+	echo "$@" 1>&2
+}
+
+main "$@

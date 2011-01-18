@@ -1,0 +1,88 @@
+# General rules for priorities:
+#  Always pass high ones through.
+LOG_EMERG: pass
+# Don't decide about middle priorities, yet. These are:
+# LOG_ALERT,LOG_CRIT, LOG_ERR, LOG_WARNING,LOG_NOTICE, LOG_INFO 
+# Always filter out very low priorities.
+LOG_DEBUG
+
+# Now consider the "facilities", which are categories of application.
+# LOG_KERN LOG_USER # This is the default facility.
+# LOG_MAIL LOG_DAEMON  LOG_AUTH LOG_LPR LOG_NEWS  
+# LOG_UUCP LOG_CRON LOG_AUDIT LOG_LOCAL0 LOG_LOCAL1 
+# LOG_LOCAL2 LOG_LOCAL3 LOG_LOCAL4 LOG_LOCAL5 
+# LOG_LOCAL6 LOG_LOCAL7 
+
+# And finally look at combinations and individual lines
+
+# Boot time
+last message repeated
+Use is subject to license terms.         
+auth.crit] {
+	rebooted by      
+}
+
+# sendfail(8) blunders
+mail.alert] unable to qualify my own domain name
+mail.crit] My unqualified host name
+
+# Power management
+daemon.error] {
+	Failed to monitor the power button.     
+	Unable to connect to open /dev/pm: pm-actions disabled   
+}
+
+
+# Shutdown
+syslogd: going down on signal 15         
+daemon.error] rpcbind terminating on signal.       
+
+
+# Networking
+NOTICE.*TX stall detected after: pass
+kern.warning] WARNING: pcipsy0: spurious interrupt from ino 0x2a
+daemon.warning] configure_if: no IP broadcast specified
+syslogd: line 24: WARNING: loghost could not be resolved
+
+# Gconfd
+user.error] file gerror.c. line 225. assertion `src != NULL' failed
+
+# Java
+user.error] libpkcs11. /usr/lib/security/pkcs11_softtoken.so unexpected failure in ELF signature verification.
+user.error] libpkcs11. open /var/run/kcfd_door. No such file or directory
+
+# Sun Update Manager
+daemon.error] {
+	unable to get my IP address: gethostbyname
+	unhandled exception: buildSysidentInfo:
+}
+user.error] {
+	file linc-protocols.c: line 933: assertion `proto != NULL' failed
+}
+daemon.warning] {
+	MLM ping curl error
+	MLM ping error
+}
+daemon.notice] {
+	Communication reestablished with server
+	attempting orderly shutdown on signal 15
+	cctransport started
+}
+user.crit] {
+	CannotConnectException: Unknown host
+}
+at com.*.java:.*\)$
+at java.*.java:.*\)$
+
+
+
+
+# Sendfail(8)
+mail.alert] unable to qualify my own domain name
+mail.crit] My unqualified host name
+
+# And trim off the rest.
+kern.notice
+kern.info
+
+
