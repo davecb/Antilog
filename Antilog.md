@@ -4,7 +4,7 @@ At customer after customer, whenever something goes wrong, we get asked to look 
 
 This is an excellent way to roll up a large number of consulting hours, but it isn't what one really wants to do, unless you <span style="font-style: normal">enjoy</span> grovelling over logs for hours, hoping to recognize something that will point you to the problem. Automated tools suffer from the same problem as manual log browsing: you don't know what you're looking for until after you've found it.
 
-However, there is a better way, as Sherlock Holms pointed out in _The Adventure of the Beryl Coronet_.
+However, there is a better way, as Sherlock Holmes pointed out in _The Adventure of the Beryl Coronet_.
 
 > It is an old maxim of mine that when you have excluded the impossible, whatever remains, however improbable, must be the truth
 
